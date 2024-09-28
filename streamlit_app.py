@@ -16,8 +16,8 @@ st.title("การจัดการข้อมูลระดับน้ำ�
 def create_dataset(data, look_back=15):
     X, y = [], []
     for i in range(len(data) - look_back):
-        X.append(data[i:(i + look_back), 0])
-        y.append(data[i + look_back, 0])
+        X.append(data[i:(i + look_back)])
+        y.append(data[i + look_back])
     return np.array(X), np.array(y)
 
 # ฟังก์ชันคำนวณความแม่นยำ
@@ -26,6 +26,11 @@ def calculate_accuracy(filled_data, original_data):
     missing_indexes = original_data[original_data['wl_up'].isna()].index
     actual_values = original_data.loc[missing_indexes, 'wl_up']
     predicted_values = filled_data.loc[missing_indexes, 'wl_up_filled']
+    
+    # ลบค่าว่างออกจาก actual_values และ predicted_values
+    mask = actual_values.notna() & predicted_values.notna()
+    actual_values = actual_values[mask]
+    predicted_values = predicted_values[mask]
     
     # คำนวณ MAE และ RMSE
     mae = mean_absolute_error(actual_values, predicted_values)
@@ -48,8 +53,10 @@ def predict_missing_values(df, model_path, look_back=15):
     df_scaled = df.copy()
     df_scaled['wl_up_scaled'] = scaler.transform(df[['wl_up']])
     
-    # เติมค่าหายไปด้วยศูนย์ชั่วคราว เพื่อสร้างลำดับเวลา
-    df_scaled['wl_up_filled'] = df_scaled['wl_up_scaled'].fillna(0)
+    # เติมค่าหายไปด้วยค่าก่อนหน้าเพื่อสร้างลำดับเวลา (Method Forward Fill)
+    df_scaled['wl_up_filled'] = df_scaled['wl_up_scaled'].fillna(method='ffill')
+    # ถ้ายังมีค่าหายไป (เช่น ค่าหายไปในช่วงแรก) ให้เติมด้วยศูนย์
+    df_scaled['wl_up_filled'] = df_scaled['wl_up_filled'].fillna(0)
     
     # เตรียมข้อมูลสำหรับ LSTM
     X = []
@@ -58,7 +65,7 @@ def predict_missing_values(df, model_path, look_back=15):
     X = np.array(X)
     X = np.reshape(X, (X.shape[0], X.shape[1], 1))
     
-    # พยากรณ์เฉพาะตำแหน่งที่ค่าหายไป
+    # พยากรณ์ค่าที่หายไป
     predictions = []
     for i in range(len(X)):
         idx = i + look_back
@@ -96,24 +103,30 @@ if uploaded_file is not None:
     
     # ตั้งค่า datetime เป็นดัชนี
     data.set_index('datetime', inplace=True)
-
+    
     # **เพิ่มการกรองข้อมูลที่ wl_up >= 100**
     data = data[data['wl_up'] >= 100]
-
+    
+    # **สร้างช่วงเวลาใหม่ที่มีทุก ๆ 15 นาที**
+    full_datetime_index = pd.date_range(start=data.index.min(), end=data.index.max(), freq='15T')
+    
+    # **รีอินเด็กซ์ข้อมูลตามช่วงเวลาใหม่**
+    data = data.reindex(full_datetime_index)
+    
     # **เรียงข้อมูลตามวันที่และเวลา**
     data = data.sort_index()
-
+    
     # **แสดงกราฟของข้อมูลที่กรองและเรียงแล้ว**
     st.subheader("กราฟข้อมูลระดับน้ำที่กรองและเรียงแล้ว")
     plt.figure(figsize=(14, 7))
     plt.plot(data.index, data['wl_up'], label='Water Level (wl_up)', color='blue')
     plt.xlabel('Date')
     plt.ylabel('Water Level (wl_up)')
-    plt.title('Water Level over Time (Filtered and Sorted)')
+    plt.title('Water Level over Time (Filtered, Reindexed, and Sorted)')
     plt.legend()
     plt.grid(True)
     st.pyplot(plt)
-
+    
     # ตรวจสอบว่ามีค่าที่หายไปหรือไม่
     if data['wl_up'].isnull().any():
         st.write("พบค่าที่หายไปในข้อมูล กำลังทำการเติมค่า...")
