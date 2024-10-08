@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
-import tempfile  # ใช้สำหรับจัดการไฟล์ชั่วคราว
 
 # ตั้งค่าหน้าเว็บ Streamlit
 st.set_page_config(page_title='Water Level Prediction (LSTM)', page_icon=':ocean:')
@@ -46,13 +45,7 @@ def calculate_accuracy(filled_data, original_data):
     st.write(f"Root Mean Square Error (RMSE): {rmse:.4f}")
 
 # ฟังก์ชันพยากรณ์ค่าระดับน้ำด้วย LSTM
-def predict_missing_values(df, model_file, look_back=15):
-    # โหลดโมเดล LSTM ที่ฝึกแล้ว
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
-        tmp.write(model_file.read())
-        tmp.seek(0)
-        model = load_model(tmp.name)
-    
+def predict_missing_values(df, model, look_back=15):
     # ฟิต Scaler ด้วยข้อมูลที่มีค่าไม่หายไป
     scaler = MinMaxScaler(feature_range=(0, 1))
     df_not_null = df[df['wl_up'].notnull()]
@@ -102,10 +95,10 @@ def predict_missing_values(df, model_file, look_back=15):
 # อัปโหลดไฟล์ CSV ข้อมูลจริง
 uploaded_file = st.file_uploader("เลือกไฟล์ CSV ข้อมูลจริง", type="csv")
 
-# อัปโหลดไฟล์โมเดล LSTM
-uploaded_model_file = st.file_uploader("เลือกไฟล์โมเดล LSTM (.h5)", type="h5")
+# โหลดโมเดล LSTM จากไฟล์ที่ระบุ
+model = load_model('lstm_2024_50epochs.h5')
 
-if uploaded_file is not None and uploaded_model_file is not None:
+if uploaded_file is not None:
     # โหลดข้อมูลจริง
     data = pd.read_csv(uploaded_file)
     data['datetime'] = pd.to_datetime(data['datetime'])
@@ -147,7 +140,7 @@ if uploaded_file is not None and uploaded_model_file is not None:
         original_data = data.copy()
 
         # พยากรณ์และเติมค่าที่หายไปด้วยโมเดล LSTM
-        filled_data = predict_missing_values(data, uploaded_model_file)
+        filled_data = predict_missing_values(data, model)
 
         # คำนวณความแม่นยำ
         calculate_accuracy(filled_data, original_data)
@@ -174,7 +167,5 @@ if uploaded_file is not None and uploaded_model_file is not None:
     else:
         st.write("ไม่พบค่าที่หายไปในข้อมูล ไม่จำเป็นต้องเติมค่า")
 else:
-    if uploaded_file is None:
-        st.write("กรุณาอัปโหลดไฟล์ CSV ข้อมูลจริง")
-    if uploaded_model_file is None:
-        st.write("กรุณาอัปโหลดไฟล์โมเดล LSTM (.h5)")
+    st.write("กรุณาอัปโหลดไฟล์ CSV ข้อมูลจริง")
+
