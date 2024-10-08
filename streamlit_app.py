@@ -103,7 +103,7 @@ def predict_missing_values(df, model_file, look_back=15):
 uploaded_file = st.file_uploader("เลือกไฟล์ CSV ข้อมูลจริง", type="csv")
 
 # อัปโหลดไฟล์โมเดล LSTM
-uploaded_model_file = st.file_uploader("เลือกไฟล์โมเดล LSTM (.keras)", type="keras")
+uploaded_model_file = st.file_uploader("เลือกไฟล์โมเดล LSTM (.h5)", type="h5")
 
 if uploaded_file is not None and uploaded_model_file is not None:
     # โหลดข้อมูลจริง
@@ -177,4 +177,4 @@ else:
     if uploaded_file is None:
         st.write("กรุณาอัปโหลดไฟล์ CSV ข้อมูลจริง")
     if uploaded_model_file is None:
-        st.write("กรุณาอัปโหลดไฟล์โมเดล LSTM (.keras)")
+        st.write("กรุณาอัปโหลดไฟล์โมเดล LSTM (.h5)")
